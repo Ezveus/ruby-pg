@@ -2114,7 +2114,7 @@ pgconn_wait_for_notify(int argc, VALUE *argv, VALUE self)
 #endif
 
 		/* Wait for the socket to become readable before checking again */
-		ret = rb_thread_select( sd+1, &sd_rset, NULL, NULL, ptimeout );
+		ret = rb_thread_fd_select( sd+1, &sd_rset, NULL, NULL, ptimeout );
 
 #ifdef _WIN32
 		cleanup_crt_fd(&sd_rset, &crt_sd_rset);
@@ -2570,7 +2570,7 @@ pgconn_block( int argc, VALUE *argv, VALUE self ) {
 	int sd = PQsocket( conn );
 	int ret;
 
-	/* If WIN32 and Ruby 1.9 do not use rb_thread_select() which sometimes hangs 
+	/* If WIN32 and Ruby 1.9 do not use rb_thread_fd_select() which sometimes hangs 
 	 * and does not wait (nor sleep) any time even if timeout is given.
 	 * Instead use the Winsock events and rb_w32_wait_events(). */
 
@@ -2595,8 +2595,8 @@ pgconn_block( int argc, VALUE *argv, VALUE self ) {
 		FD_ZERO( &sd_rset );
 		FD_SET( sd, &sd_rset );
 
-		if ( (ret = rb_thread_select( sd+1, &sd_rset, NULL, NULL, ptimeout )) < 0 )
-			rb_sys_fail( "rb_thread_select()" ); /* Raises */
+		if ( (ret = rb_thread_fd_select( sd+1, &sd_rset, NULL, NULL, ptimeout )) < 0 )
+			rb_sys_fail( "rb_thread_fd_select()" ); /* Raises */
 
 		/* Return false if there was a timeout argument and the select() timed out */
 		if ( ret == 0 && argc )
@@ -2615,7 +2615,7 @@ pgconn_block( int argc, VALUE *argv, VALUE self ) {
 
 /*
  * Win32 PGconn#block -- on Windows, use platform-specific strategies to wait for the socket 
- * instead of rb_thread_select().
+ * instead of rb_thread_fd_select().
  */
 
 /* Win32 + Ruby 1.9+ */
@@ -2623,7 +2623,7 @@ pgconn_block( int argc, VALUE *argv, VALUE self ) {
 
 int rb_w32_wait_events( HANDLE *events, int num, DWORD timeout );
 
-/* If WIN32 and Ruby 1.9 do not use rb_thread_select() which sometimes hangs 
+/* If WIN32 and Ruby 1.9 do not use rb_thread_fd_select() which sometimes hangs 
  * and does not wait (nor sleep) any time even if timeout is given.
  * Instead use the Winsock events and rb_w32_wait_events(). */
 
@@ -2705,7 +2705,7 @@ pgconn_block( int argc, VALUE *argv, VALUE self ) {
 	VALUE timeout_in;
 	double timeout_sec;
 
-	/* Always set a timeout, as rb_thread_select() sometimes
+	/* Always set a timeout, as rb_thread_fd_select() sometimes
 	 * doesn't return when a second ruby thread is running although data
 	 * could be read. So we use timeout-based polling instead.
 	 */
@@ -2729,7 +2729,7 @@ pgconn_block( int argc, VALUE *argv, VALUE self ) {
 		FD_SET( sd, &sd_rset );
 
 		create_crt_fd( &sd_rset, &crt_sd_rset );
-		ret = rb_thread_select( sd+1, &sd_rset, NULL, NULL, ptimeout );
+		ret = rb_thread_fd_select( sd+1, &sd_rset, NULL, NULL, ptimeout );
 		cleanup_crt_fd( &sd_rset, &crt_sd_rset );
 
 		/* Return false if there was a timeout argument and the select() timed out */
@@ -2798,7 +2798,7 @@ pgconn_get_last_result(VALUE self)
  *
  * This function has the same behavior as +PGconn#exec+,
  * except that it's implemented using asynchronous command 
- * processing and ruby's +rb_thread_select+ in order to 
+ * processing and ruby's +rb_thread_fd_select+ in order to 
  * allow other threads to process while waiting for the
  * server to complete the request.
  */
